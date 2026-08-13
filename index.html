@@ -29,7 +29,7 @@ header{
   position:sticky;top:0;z-index:20;box-shadow:0 2px 10px rgba(0,0,0,.12);
 }
 header h1{font-size:19px;margin:0;font-weight:700}
-header .count{font-size:13px;opacity:.85}
+header .count{font-size:12px;opacity:.9;display:flex;flex-direction:column;align-items:flex-start;line-height:1.5;text-align:right}
 main{padding:14px 14px 96px;max-width:640px;margin:0 auto}
 .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px}
 .btn{
@@ -113,7 +113,7 @@ h2{font-size:17px;margin:0 0 10px}
 
 <header>
   <h1>📦 انبار مغازه</h1>
-  <span class="count"><span id="hdrSync">بدون همگام‌سازی</span> · <span id="hdrCount"></span></span>
+  <span class="count"><span id="hdrCount"></span><span id="hdrSync">بدون همگام‌سازی</span></span>
 </header>
 
 <main>
@@ -158,8 +158,8 @@ h2{font-size:17px;margin:0 0 10px}
       <input id="cfgToken" placeholder="رمز" dir="ltr">
       <label>اسم این گوشی (برای تاریخچه)</label>
       <input id="cfgDevice" placeholder="مثلاً گوشی حاج‌آقا">
-      <button class="btn" id="btnSyncNow" style="margin-top:14px">🔄 همگام‌سازی الان</button>
-      <button class="btn sec" id="btnSaveCfg">ذخیرهٔ تنظیمات</button>
+      <button class="btn" id="btnSaveCfg" style="margin-top:14px">💾 ذخیره و اتصال</button>
+      <button class="btn sec" id="btnSyncNow">🔄 همگام‌سازی الان</button>
     </div>
     <div class="card">
       <h2>پشتیبان‌گیری</h2>
@@ -554,11 +554,33 @@ function scheduleSync(){
   clearTimeout(syncTimer);
   syncTimer = setTimeout(() => sync(false), 1500);
 }
+/**
+ * قبل از اولین همگام‌سازی روی این گوشی، تکلیف کالاهایی که فقط اینجا هستند
+ * روشن می‌شود؛ وگرنه اولین پاسخِ شیت آن‌ها را پاک می‌کند.
+ * خروجی false یعنی کاربر هنوز تصمیم نگرفته و همگام‌سازی باید صبر کند.
+ */
+function firstPushDone(){
+  if(DB.cfg.everSynced) return true;
+  if(!DB.items.length){ return true; }
+  const ans = confirm(fa(DB.items.length) + " کالا روی این گوشی هست.\n\n" +
+    "«تأیید» = این‌ها به گوگل‌شیت فرستاده شوند.\n" +
+    "«لغو» = این‌ها پاک شوند و لیست شیت جایگزین شود.");
+  if(ans){
+    DB.items.forEach(i => DB.queue.push({
+      op: "upsert", id: i.id, code: i.code, name: i.name, price: i.price,
+      stock: i.stock, unit: i.unit, device: DB.cfg.device || "",
+      opId: "o" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
+    }));
+  }
+  DB.cfg.everSynced = true; save();
+  return true;
+}
 async function sync(manual){
   const cfg = DB.cfg || {};
   if(!cfg.url){ if(manual) toast("اول آدرس همگام‌سازی را وارد کن"); return; }
   if(syncing) return;
   if(!navigator.onLine){ setSyncUI("آفلاین — بعداً می‌فرستم"); return; }
+  if(!firstPushDone()) return;   // اولین اتصال: تکلیف کالاهای روی گوشی روشن شود
   syncing = true; setSyncUI("در حال همگام‌سازی…");
   try{
     const res = await fetch(cfg.url, {
@@ -596,26 +618,27 @@ function applyQueueLocally(){
     else if(op.op === "delete"){ DB.items = DB.items.filter(i => i.id !== op.id); }
   });
 }
-$("#btnSaveCfg").onclick = () => {
-  const first = !DB.cfg.everSynced;
+// هر چیزی که در فرم تایپ می‌شود بلافاصله ذخیره می‌شود تا هیچ دکمه‌ای
+// با تنظیمات قدیمی کار نکند
+function readCfg(){
   DB.cfg = {
     url:    $("#cfgUrl").value.trim(),
     token:  $("#cfgToken").value.trim(),
     device: $("#cfgDevice").value.trim(),
     everSynced: DB.cfg.everSynced || false
   };
-  // اولین اتصال: کالاهای روی گوشی باید به شیت فرستاده شوند وگرنه با
-  // اولین همگام‌سازی جای خود را به دادهٔ شیت (که خالی است) می‌دهند
-  if(first && DB.items.length){
-    if(confirm(fa(DB.items.length) + " کالا روی این گوشی هست.\nبه گوگل‌شیت فرستاده شود؟\n\n" +
-               "«لغو» یعنی این‌ها پاک می‌شوند و لیست شیت جایگزین می‌شود.")){
-      DB.items.forEach(i => queueOp({op: "upsert", id: i.id, code: i.code, name: i.name,
-                                     price: i.price, stock: i.stock, unit: i.unit}));
-    }
-  }
-  save(); setSyncUI(); toast("تنظیمات ذخیره شد"); sync(true);
+  save();
+}
+["#cfgUrl", "#cfgToken", "#cfgDevice"].forEach(s => {
+  $(s).addEventListener("input", () => { readCfg(); setSyncUI(); });
+});
+
+$("#btnSaveCfg").onclick = () => {
+  readCfg();
+  if(!DB.cfg.url){ toast("آدرس اتصال خالی است"); return; }
+  setSyncUI(); toast("تنظیمات ذخیره شد"); sync(true);
 };
-$("#btnSyncNow").onclick = () => sync(true);
+$("#btnSyncNow").onclick = () => { readCfg(); sync(true); };
 window.addEventListener("online", () => sync(false));
 setInterval(() => { if(!document.hidden) sync(false); }, 45000);
 document.addEventListener("visibilitychange", () => { if(!document.hidden) sync(false); });
