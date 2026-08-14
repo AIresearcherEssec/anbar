@@ -20,8 +20,11 @@ const PROP_OPS  = 'recentOpIds';
 
 /* ---------------- ورودی‌ها ---------------- */
 
+const VERSION = 5;   // با باز کردن آدرس /exec در مرورگر دیده می‌شود
+
 function doGet() {
-  return json({ ok: true, msg: 'API انبار فعال است. اپ باید با POST وصل شود.' });
+  return json({ ok: true, v: VERSION, cols: HDR_ITEMS.length,
+                msg: 'API انبار فعال است. نسخهٔ ' + VERSION + ' با ' + HDR_ITEMS.length + ' ستون.' });
 }
 
 function doPost(e) {
