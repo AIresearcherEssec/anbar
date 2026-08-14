@@ -138,6 +138,7 @@ h2{font-size:17px;margin:0 0 10px}
         <div class="scanline" id="scanline"></div>
       </div>
       <button class="btn" id="btnScan">📷 شروع اسکن بارکد</button>
+      <button class="btn sec" id="btnEngine" hidden>🔁 اگر نمی‌خواند، این را بزن</button>
       <p class="hint" id="scanHint">دوربین را روی بارکد کالا بگیرید</p>
     </div>
 
@@ -320,7 +321,7 @@ const DEFAULT_CFG = {
   url:   "https://script.google.com/macros/s/AKfycbzcq7yiRqSSPljHszT8nXr2IGRUGaD8WxzGOl_j48EAcNg-FTI-LYp99dsp0Fm_ftFVoQ/exec",
   token: "Hadis1376"
 };
-const APP_VERSION = "2.0";
+const APP_VERSION = "2.1";
 // آدرس‌های بازنشسته؛ گوشی‌هایی که این‌ها را ذخیره کرده‌اند خودکار به‌روز می‌شوند
 const OLD_URLS = [
   "https://script.google.com/macros/s/AKfycbzl9lOm--guC8maTXt5gsy8cSytkxFEg_Hr6FpLtG1jxP9snVFSgs03j3OQoSY7ALHijQ/exec",
@@ -826,9 +827,20 @@ $("#btnManual").onclick = () => { handleCode($("#manualCode").value); $("#manual
 $("#manualCode").addEventListener("keydown", e => { if(e.key === "Enter") $("#btnManual").click(); });
 
 /* ---------------- بارکدخوان ---------------- */
-let stream = null, scanning = false, rafId = null, zx = null, lastHit = {c:"", t:0};
+/*
+ * دو موتور خواندن داریم:
+ *   ۱) BarcodeDetector خودِ اندروید — سریع، ولی روی بعضی گوشی‌ها (مثل A31)
+ *      ماژولش از گوگل‌پلی نصب نشده و بی‌سروصدا هیچ‌وقت چیزی پیدا نمی‌کند.
+ *   ۲) ZXing که داخل خود اپ جاسازی شده و همه‌جا کار می‌کند.
+ * اول اولی امتحان می‌شود؛ اگر پشتیبانی نکند یا ۵ ثانیه چیزی نبیند،
+ * خودکار به دومی سوییچ می‌کنیم.
+ */
+let stream = null, scanning = false, rafId = null, zx = null;
+let lastHit = {c: "", t: 0}, watchdog = null, engine = "";
 
-async function startScan(){
+const FORMATS = ["ean_13","ean_8","upc_a","upc_e","code_128","code_39","itf","codabar","qr_code"];
+
+async function startScan(forceZX){
   const v = $("#video");
   try{
     stream = await navigator.mediaDevices.getUserMedia({
@@ -841,30 +853,64 @@ async function startScan(){
     return;
   }
   v.srcObject = stream; v.style.display = "block"; $("#scanline").style.display = "block";
-  await v.play();
+  try{ await v.play(); }catch(e){}
   scanning = true;
   $("#btnScan").textContent = "■ توقف اسکن";
+  $("#btnEngine").hidden = false;
+
+  let native = false;
+  if(!forceZX && "BarcodeDetector" in window){
+    try{
+      const fmts = await window.BarcodeDetector.getSupportedFormats();
+      // آرایهٔ خالی یعنی ماژول روی گوشی نصب نیست
+      if(fmts && fmts.length && fmts.some(f => FORMATS.indexOf(f) >= 0)) native = true;
+    }catch(e){}
+  }
+
+  if(native) startNative(v); else startZX(v, forceZX ? "" : "auto");
+}
+
+function startNative(v){
+  engine = "native";
   $("#scanHint").textContent = "بارکد را داخل کادر بگیرید…";
-  if("BarcodeDetector" in window){
-    const det = new window.BarcodeDetector({
-      formats: ["ean_13","ean_8","upc_a","upc_e","code_128","code_39","itf","codabar","qr_code"]
-    });
-    const loop = async () => {
-      if(!scanning) return;
-      try{
-        const r = await det.detect(v);
-        if(r && r.length) onHit(r[0].rawValue);
-      }catch(e){}
-      rafId = requestAnimationFrame(loop);
-    };
-    loop();
-  }else if(window.ZXing){
-    zx = new window.ZXing.BrowserMultiFormatReader();
-    zx.decodeFromStream(stream, v, (res) => { if(res) onHit(res.getText()); });
-  }else{
+  const det = new window.BarcodeDetector({formats: FORMATS});
+  const loop = async () => {
+    if(!scanning || engine !== "native") return;
+    try{
+      const r = await det.detect(v);
+      if(r && r.length && r[0].rawValue) return onHit(r[0].rawValue);
+    }catch(e){}
+    rafId = requestAnimationFrame(loop);
+  };
+  loop();
+  // اگر پنج ثانیه هیچ چیزی نخواند، احتمالاً موتور گوشی خراب است
+  clearTimeout(watchdog);
+  watchdog = setTimeout(() => {
+    if(scanning && engine === "native"){
+      if(rafId){ cancelAnimationFrame(rafId); rafId = null; }
+      startZX(v, "auto");
+    }
+  }, 5000);
+}
+
+function startZX(v, auto){
+  clearTimeout(watchdog); watchdog = null;
+  if(!window.ZXing){
     $("#scanHint").textContent = "بارکدخوان در دسترس نیست؛ از ورود دستی استفاده کنید.";
+    return;
+  }
+  engine = "zxing";
+  $("#scanHint").textContent = auto
+    ? "روش دوم اسکن فعال شد. کمی صبر کن و بارکد را ثابت نگه دار…"
+    : "روش دوم اسکن — بارکد را داخل کادر بگیر…";
+  try{
+    zx = new window.ZXing.BrowserMultiFormatReader();
+    zx.decodeFromStream(stream, v, res => { if(res) onHit(res.getText()); });
+  }catch(e){
+    $("#scanHint").textContent = "اسکن ممکن نشد: " + (e.message || e);
   }
 }
+
 function onHit(code){
   const now = Date.now();
   if(code === lastHit.c && now - lastHit.t < 2500) return;
@@ -872,16 +918,27 @@ function onHit(code){
   stopScan();
   handleCode(code);
 }
+
 function stopScan(){
-  scanning = false;
-  if(rafId) cancelAnimationFrame(rafId), rafId = null;
+  scanning = false; engine = "";
+  clearTimeout(watchdog); watchdog = null;
+  if(rafId){ cancelAnimationFrame(rafId); rafId = null; }
   if(zx){ try{ zx.reset(); }catch(e){} zx = null; }
   if(stream){ stream.getTracks().forEach(t => t.stop()); stream = null; }
   const v = $("#video"); v.srcObject = null; v.style.display = "none";
   $("#scanline").style.display = "none";
   $("#btnScan").textContent = "📷 شروع اسکن بارکد";
+  $("#btnEngine").hidden = true;
   $("#scanHint").textContent = "دوربین را روی بارکد کالا بگیرید";
 }
+
+// دکمهٔ دستی برای وقتی که کاربر خودش می‌خواهد موتور را عوض کند
+$("#btnEngine").onclick = () => {
+  if(!scanning) return;
+  const toZX = engine !== "zxing";
+  stopScan();
+  setTimeout(() => startScan(toZX), 250);
+};
 $("#btnScan").onclick = () => scanning ? stopScan() : startScan();
 document.addEventListener("visibilitychange", () => { if(document.hidden) stopScan(); });
 
