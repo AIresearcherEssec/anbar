@@ -1,9 +1,13 @@
 /* سرویس‌ورکر انبار — اپ را روی گوشی نگه می‌دارد تا بدون اینترنت هم باز شود */
-const V = 'anbar-v2';
+const V = 'anbar-v3';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(V).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
+  e.waitUntil(
+    caches.open(V)
+      .then(c => c.addAll(FILES.map(f => new Request(f, {cache: 'reload'}))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', e => {
@@ -14,6 +18,10 @@ self.addEventListener('activate', e => {
   );
 });
 
+self.addEventListener('message', e => {
+  if (e.data === 'skipWaiting') self.skipWaiting();
+});
+
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
 
@@ -21,9 +29,13 @@ self.addEventListener('fetch', e => {
   if (url.origin !== location.origin) return;
   if (e.request.method !== 'GET') return;
 
-  // اول شبکه، اگر نبود از کش (تا آپدیت‌های اپ زود دیده شود)
+  // خودِ صفحهٔ اپ همیشه از شبکه گرفته می‌شود و کش مرورگر دور زده می‌شود،
+  // تا نسخهٔ جدید بدون هیچ ترفندی دیده شود
+  const isPage = e.request.mode === 'navigate' || url.pathname.endsWith('/index.html');
+  const req = isPage ? new Request(e.request.url, {cache: 'reload'}) : e.request;
+
   e.respondWith(
-    fetch(e.request)
+    fetch(req)
       .then(res => {
         const copy = res.clone();
         caches.open(V).then(c => c.put(e.request, copy));
