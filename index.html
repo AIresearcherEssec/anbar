@@ -213,6 +213,19 @@ h2{font-size:17px;margin:0 0 10px}
   </div>
 </div>
 
+<!-- ============ شیت بارکد ناشناس ============ -->
+<div class="sheet" id="sheetUnknown">
+  <div class="inner">
+    <h2>این بارکد در لیست نیست</h2>
+    <p class="tag" id="uCode"></p>
+    <p class="sub">اگر این جنس از قبل در انبار هست، از لیست زیر انتخابش کن تا بارکد برایش ثبت شود. دفعهٔ بعد با یک اسکن پیدا می‌شود.</p>
+    <input id="uSearch" placeholder="🔍 اسم کالا را بنویس">
+    <div id="uList" style="max-height:46vh;overflow:auto;margin-top:10px"></div>
+    <button class="btn ghost" id="uNew" style="margin-top:12px">➕ این یک کالای جدید است</button>
+    <button class="btn sec" id="uClose">بی‌خیال</button>
+  </div>
+</div>
+
 <!-- ============ شیت فرم کالا ============ -->
 <div class="sheet" id="sheetForm">
   <div class="inner">
@@ -255,7 +268,7 @@ const DEFAULT_CFG = {
   url:   "https://script.google.com/macros/s/AKfycbzl9lOm--guC8maTXt5gsy8cSytkxFEg_Hr6FpLtG1jxP9snVFSgs03j3OQoSY7ALHijQ/exec",
   token: "Hadis1376"
 };
-const APP_VERSION = "1.4";
+const APP_VERSION = "1.5";
 
 /* ---------------- کمکی‌ها ---------------- */
 const $ = s => document.querySelector(s);
@@ -478,11 +491,54 @@ function handleCode(code){
   if(!code) return;
   const item = findByCode(code);
   if(item){ beep(true); openItem(item); }
-  else{
-    beep(false);
-    if(confirm("بارکد " + code + "\nدر لیست نیست. کالای جدید ثبت شود؟")) openForm(null, code);
-  }
+  else{ beep(false); openUnknown(code); }
 }
+
+/* بارکد ناشناس: یا به کالای موجود وصل می‌شود یا کالای جدید می‌سازد */
+let UCODE = "";
+function openUnknown(code){
+  UCODE = code;
+  $("#uCode").textContent = "بارکد: " + code;
+  $("#uSearch").value = "";
+  renderUList();
+  $("#sheetUnknown").classList.add("on");
+}
+function renderUList(){
+  const q = toEn($("#uSearch").value).trim().toLowerCase();
+  // کالاهای بدون بارکد اول می‌آیند، چون معمولاً همان‌ها منتظر وصل شدن‌اند
+  let items = DB.items.slice().sort((a, b) =>
+    (a.code ? 1 : 0) - (b.code ? 1 : 0) || a.name.localeCompare(b.name, "fa"));
+  if(q) items = items.filter(i => i.name.toLowerCase().includes(q));
+  items = items.slice(0, 40);
+  const box = $("#uList");
+  if(!items.length){ box.innerHTML = '<div class="empty">کالایی پیدا نشد.</div>'; return; }
+  box.innerHTML = items.map(i => `
+    <div class="item" data-id="${i.id}">
+      <div class="nm">
+        <b>${esc(i.name)}</b>
+        <span>${i.code ? "بارکد دارد: " + esc(i.code) : "بدون بارکد"} • موجودی ${fa(i.stock)}</span>
+      </div>
+      <span class="pill">وصل کن</span>
+    </div>`).join("");
+  box.querySelectorAll(".item").forEach(el =>
+    el.onclick = () => attachCode(el.dataset.id));
+}
+$("#uSearch").oninput = renderUList;
+function attachCode(id){
+  const it = DB.items.find(x => x.id === id);
+  if(!it) return;
+  if(it.code && it.code !== UCODE){
+    if(!confirm("«" + it.name + "» از قبل بارکد " + it.code + " دارد.\nبا بارکد جدید جایگزین شود؟")) return;
+  }
+  it.code = UCODE; it.at = Date.now();
+  queueOp({op: "meta", id: it.id, code: it.code, name: it.name, price: it.price, unit: it.unit});
+  save(); renderList();
+  $("#sheetUnknown").classList.remove("on");
+  beep(true); toast("بارکد به «" + it.name + "» وصل شد");
+  openItem(it);
+}
+$("#uNew").onclick   = () => { $("#sheetUnknown").classList.remove("on"); openForm(null, UCODE); };
+$("#uClose").onclick = () => $("#sheetUnknown").classList.remove("on");
 $("#btnManual").onclick = () => { handleCode($("#manualCode").value); $("#manualCode").value = ""; };
 $("#manualCode").addEventListener("keydown", e => { if(e.key === "Enter") $("#btnManual").click(); });
 
