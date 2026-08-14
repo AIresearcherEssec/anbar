@@ -320,7 +320,7 @@ const DEFAULT_CFG = {
   url:   "https://script.google.com/macros/s/AKfycbzl9lOm--guC8maTXt5gsy8cSytkxFEg_Hr6FpLtG1jxP9snVFSgs03j3OQoSY7ALHijQ/exec",
   token: "Hadis1376"
 };
-const APP_VERSION = "1.8";
+const APP_VERSION = "1.9";
 
 /* ---------------- کمکی‌ها ---------------- */
 const $ = s => document.querySelector(s);
@@ -446,6 +446,12 @@ const CATS = [
   ["جعبه و بسته‌بندی", ["جعبه پلاستیکی","جعبه فلزی","جعبه مقوایی","جار کیک"]],
   ["سایر", ["لوازم برقی قنادی","ماکت","زیردسری و زیرکیکی","لوازم تولد","ظروف و دکوری"]]
 ];
+// گروه اصلی هر زیردسته را برمی‌گرداند تا در شیت جدا ثبت شود
+function groupOf(cat){
+  if(!cat) return "";
+  for(const g of CATS) if(g[1].indexOf(cat) >= 0) return g[0];
+  return "دسته‌های خودمان";
+}
 function knownCats(){
   const s = [];
   CATS.forEach(g => g[1].forEach(c => s.push(c)));
@@ -688,8 +694,9 @@ function openForm(item, presetCode){
   if(item && item.cat && $("#fCat").value !== item.cat) $("#fCat").value = "";  // دسته‌ای که دیگر نیست
 
   const exp = item ? (item.exp || "") : "";
-  $("#fPer").checked = !!exp;
-  $("#expBox").hidden = !exp;
+  const per = item ? (item.per || !!exp) : false;
+  $("#fPer").checked = per;
+  $("#expBox").hidden = !per;
   const m = /^(\d{4})\/(\d{1,2})\/(\d{1,2})$/.exec(toEn(exp));
   fillExpSelects(m ? {y: +m[1], m: +m[2], d: +m[3]} : null);
 
@@ -714,10 +721,11 @@ $("#fSave").onclick = () => {
     cat = $("#fCatNew").value.trim();
     if(!cat){ toast("اسم دستهٔ جدید را بنویسید"); $("#fCatNew").focus(); return; }
   }
-  const exp = $("#fPer").checked ? readExp() : "";
+  const per = $("#fPer").checked;
+  const exp = per ? readExp() : "";
 
   const data = {
-    name, code, cat, exp,
+    name, code, cat, exp, per, grp: groupOf(cat),
     price: num($("#fPrice").value),
     stock: num($("#fStock").value),
     unit:  $("#fUnit").value,
@@ -728,14 +736,16 @@ $("#fSave").onclick = () => {
     Object.assign(EDIT, data);
     // نام و قیمت جدا از موجودی فرستاده می‌شود تا فروشِ گوشی دیگر پاک نشود
     queueOp({op: "meta", id: EDIT.id, code: data.code, name: data.name,
-             price: data.price, unit: data.unit, cat: data.cat, exp: data.exp});
+             price: data.price, unit: data.unit,
+             grp: data.grp, cat: data.cat, per: data.per, exp: data.exp});
     if(diff !== 0){ queueOp({op: "delta", id: EDIT.id, qty: diff}); logHist(EDIT, diff, data.stock); }
     toast("ذخیره شد");
   }else{
     const it = Object.assign({id: uid()}, data);
     DB.items.push(it);
     queueOp({op: "upsert", id: it.id, code: it.code, name: it.name, price: it.price,
-             stock: it.stock, unit: it.unit, cat: it.cat, exp: it.exp});
+             stock: it.stock, unit: it.unit,
+             grp: it.grp, cat: it.cat, per: it.per, exp: it.exp});
     toast("کالا اضافه شد");
   }
   save(); updateCount(); renderList(); renderExp();
@@ -949,11 +959,11 @@ function applyQueueLocally(){
   DB.queue.forEach(op => {
     const f = DB.items.find(i => i.id === op.id);
     if(op.op === "delta"){ if(f) f.stock = num(f.stock) + num(op.qty); }
-    else if(op.op === "meta"){ if(f) Object.assign(f, {code: op.code, name: op.name, price: op.price, unit: op.unit, cat: op.cat, exp: op.exp}); }
+    else if(op.op === "meta"){ if(f) Object.assign(f, {code: op.code, name: op.name, price: op.price, unit: op.unit, grp: op.grp, cat: op.cat, per: op.per, exp: op.exp}); }
     else if(op.op === "upsert"){
-      if(f) Object.assign(f, {code: op.code, name: op.name, price: op.price, stock: op.stock, unit: op.unit, cat: op.cat, exp: op.exp});
-      else DB.items.push({id: op.id, code: op.code, name: op.name, price: op.price,
-                          stock: op.stock, unit: op.unit, cat: op.cat, exp: op.exp, at: Date.now()});
+      if(f) Object.assign(f, {code: op.code, name: op.name, price: op.price, stock: op.stock, unit: op.unit, grp: op.grp, cat: op.cat, per: op.per, exp: op.exp});
+      else DB.items.push({id: op.id, code: op.code, name: op.name, price: op.price, stock: op.stock,
+                          unit: op.unit, grp: op.grp, cat: op.cat, per: op.per, exp: op.exp, at: Date.now()});
     }
     else if(op.op === "delete"){ DB.items = DB.items.filter(i => i.id !== op.id); }
   });
