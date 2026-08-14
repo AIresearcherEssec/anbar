@@ -155,8 +155,8 @@ h2{font-size:17px;margin:0 0 10px}
       <button class="btn" id="btnSyncNow">🔄 همگام‌سازی الان</button>
       <details style="margin-top:16px">
         <summary style="cursor:pointer;color:var(--muted);font-size:14px">تنظیمات پیشرفته (معمولاً لازم نیست)</summary>
-        <label>اسم این گوشی (در تاریخچه ثبت می‌شود)</label>
-        <input id="cfgDevice" placeholder="مثلاً گوشی حاج‌آقا">
+        <label>اسم کاربر (در تاریخچه ثبت می‌شود)</label>
+        <input id="cfgDevice" placeholder="مثلاً حاج‌آقا رضایی">
         <label>آدرس اتصال</label>
         <input id="cfgUrl" dir="ltr">
         <label>رمز اتصال</label>
@@ -210,6 +210,17 @@ h2{font-size:17px;margin:0 0 10px}
     <button class="btn danger" id="dApplyMinus">➖ کم کردن از موجودی (فروش)</button>
     <button class="btn sec" id="dEdit">✏️ ویرایش نام و قیمت</button>
     <button class="btn ghost" id="dClose">بستن</button>
+  </div>
+</div>
+
+<!-- ============ شیت پرسیدن نام کاربر ============ -->
+<div class="sheet" id="sheetWho">
+  <div class="inner">
+    <h2>خوش آمدید 👋</h2>
+    <p class="sub">اسم شما چیست؟ هر کم و زیاد کردن موجودی با همین اسم در تاریخچه ثبت می‌شود تا معلوم باشد چه کسی چه کاری کرده. این را فقط یک بار می‌پرسیم.</p>
+    <label>اسم شما</label>
+    <input id="whoName" placeholder="مثلاً حاج‌آقا رضایی" autocomplete="name">
+    <button class="btn" id="whoSave" style="margin-top:16px">شروع کار</button>
   </div>
 </div>
 
@@ -268,7 +279,7 @@ const DEFAULT_CFG = {
   url:   "https://script.google.com/macros/s/AKfycbzl9lOm--guC8maTXt5gsy8cSytkxFEg_Hr6FpLtG1jxP9snVFSgs03j3OQoSY7ALHijQ/exec",
   token: "Hadis1376"
 };
-const APP_VERSION = "1.5";
+const APP_VERSION = "1.6";
 
 /* ---------------- کمکی‌ها ---------------- */
 const $ = s => document.querySelector(s);
@@ -316,13 +327,17 @@ function load(){
   // اتصال خودکار: کاربر هیچ آدرس و رمزی وارد نمی‌کند
   if(!DB.cfg.url)    DB.cfg.url    = DEFAULT_CFG.url;
   if(!DB.cfg.token)  DB.cfg.token  = DEFAULT_CFG.token;
-  if(!DB.cfg.device) DB.cfg.device = autoDeviceName();
   save();
 }
-// یک اسم کوتاه و یکتا برای هر گوشی تا در تاریخچه معلوم باشد کارِ کیست
-function autoDeviceName(){
-  const L = "الف ب پ ت ث ج چ ح خ د ذ ر ز س ش ص ط ع ف ق ک گ ل م ن و ه ی".split(" ");
-  return "گوشی " + L[Math.floor(Math.random() * L.length)] + Math.floor(Math.random() * 90 + 10);
+/**
+ * اسم کاربر فقط یک بار پرسیده می‌شود و روی همان دستگاه می‌ماند.
+ * نسخه‌های قبلی اسم خودکاری مثل «گوشی ن۸۷» می‌ساختند که برای کسی معنا نداشت؛
+ * آن‌ها هم یک بار دوباره پرسیده می‌شوند.
+ */
+function needsName(){
+  const d = (DB.cfg.device || "").trim();
+  if(!d) return true;
+  return /^گوشی\s+\S{1,2}\d{1,3}$/.test(d);
 }
 function save(){
   try{ localStorage.setItem(KEY, JSON.stringify(DB)); }
@@ -713,6 +728,22 @@ $("#btnSaveCfg").onclick = () => {
   setSyncUI(); toast("ذخیره شد"); sync(true);
 };
 $("#btnSyncNow").onclick = () => { readCfg(); sync(true); };
+
+/* ---------------- پرسیدن نام کاربر ---------------- */
+function askName(){
+  $("#whoName").value = needsName() ? "" : (DB.cfg.device || "");
+  $("#sheetWho").classList.add("on");
+  setTimeout(() => { try{ $("#whoName").focus(); }catch(e){} }, 300);
+}
+$("#whoSave").onclick = () => {
+  const n = $("#whoName").value.trim();
+  if(n.length < 2){ toast("اسمتان را بنویسید"); $("#whoName").focus(); return; }
+  DB.cfg.device = n; save();
+  $("#cfgDevice").value = n;
+  $("#sheetWho").classList.remove("on");
+  setSyncUI(); toast("خوش آمدی " + n);
+};
+$("#whoName").addEventListener("keydown", e => { if(e.key === "Enter") $("#whoSave").click(); });
 window.addEventListener("online", () => sync(false));
 setInterval(() => { if(!document.hidden) sync(false); }, 45000);
 document.addEventListener("visibilitychange", () => { if(!document.hidden) sync(false); });
@@ -797,7 +828,12 @@ $("#cfgDevice").value = DB.cfg.device || "";
 setSyncUI();
 setTimeout(() => sync(false), 600);
 document.querySelectorAll(".sheet").forEach(s =>
-  s.onclick = e => { if(e.target === s) s.classList.remove("on"); });
+  s.onclick = e => {
+    // تا وقتی اسم وارد نشده، این یکی با کلیک بیرونی بسته نمی‌شود
+    if(s.id === "sheetWho" && needsName()) return;
+    if(e.target === s) s.classList.remove("on");
+  });
+if(needsName()) askName();
 </script>
 <script>
 /* نسخهٔ جدید اپ خودش می‌آید: بدون پاک کردن کش، بدون آدرس متفاوت */
