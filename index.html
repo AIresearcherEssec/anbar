@@ -317,10 +317,15 @@ h2{font-size:17px;margin:0 0 10px}
    تنظیمات کارخانه — اپ خودش وصل می‌شود و کاربر چیزی وارد نمی‌کند
    ============================================================ */
 const DEFAULT_CFG = {
-  url:   "https://script.google.com/macros/s/AKfycbzl9lOm--guC8maTXt5gsy8cSytkxFEg_Hr6FpLtG1jxP9snVFSgs03j3OQoSY7ALHijQ/exec",
+  url:   "https://script.google.com/macros/s/AKfycbzcq7yiRqSSPljHszT8nXr2IGRUGaD8WxzGOl_j48EAcNg-FTI-LYp99dsp0Fm_ftFVoQ/exec",
   token: "Hadis1376"
 };
-const APP_VERSION = "1.9";
+const APP_VERSION = "2.0";
+// آدرس‌های بازنشسته؛ گوشی‌هایی که این‌ها را ذخیره کرده‌اند خودکار به‌روز می‌شوند
+const OLD_URLS = [
+  "https://script.google.com/macros/s/AKfycbzl9lOm--guC8maTXt5gsy8cSytkxFEg_Hr6FpLtG1jxP9snVFSgs03j3OQoSY7ALHijQ/exec",
+  "https://script.google.com/macros/s/AKfycbyD9IgRcn7R-hPtmsEGtWpO7UoOlJRbF9zkZU5ZBinmakhmjNK868Jft_XA3Zq8DGSU-Q/exec"
+];
 
 /* ---------------- کمکی‌ها ---------------- */
 const $ = s => document.querySelector(s);
@@ -526,6 +531,8 @@ function load(){
 
   // اتصال خودکار: کاربر هیچ آدرس و رمزی وارد نمی‌کند
   if(!DB.cfg.url)    DB.cfg.url    = DEFAULT_CFG.url;
+  // اگر آدرس ذخیره‌شده مربوط به دیپلوی قدیمی است، بی‌صدا به آدرس تازه منتقل می‌شود
+  if(OLD_URLS.indexOf(DB.cfg.url) >= 0) DB.cfg.url = DEFAULT_CFG.url;
   if(!DB.cfg.token)  DB.cfg.token  = DEFAULT_CFG.token;
   save();
 }
