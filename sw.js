@@ -1,5 +1,5 @@
 /* سرویس‌ورکر انبار — اپ را روی گوشی نگه می‌دارد تا بدون اینترنت هم باز شود */
-const V = 'anbar-v12';
+const V = 'anbar-v13';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-512-maskable.png'];
 
 self.addEventListener('install', e => {
