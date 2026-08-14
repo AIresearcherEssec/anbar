@@ -16,6 +16,8 @@
   --ok:#15803d; --warn:#b45309; --bad:#b91c1c;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+/* بدون این، کلاس‌هایی که display دارند صفت hidden را بی‌اثر می‌کنند */
+[hidden]{display:none !important}
 html,body{margin:0;padding:0;height:100%}
 body{
   background:var(--bg);color:var(--ink);
@@ -116,6 +118,42 @@ nav button.on{color:var(--brand);font-weight:700}
 .b-amb{background:#fef3c7;color:var(--warn)}
 .b-ok{background:#dcfce7;color:var(--ok)}
 .cat{font-size:12px;color:var(--muted)}
+/* ---- فروش ---- */
+.qgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.qbtn{
+  border:1px solid var(--line);border-radius:14px;padding:11px 10px;background:#fff;
+  font-family:inherit;font-size:15px;font-weight:600;text-align:right;cursor:pointer;
+  line-height:1.45;min-height:66px;color:var(--ink)
+}
+.qbtn:active{background:#e8f5f3;border-color:var(--brand)}
+.qbtn small{display:block;color:var(--muted);font-weight:400;font-size:12px}
+.cline{display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--line)}
+.cline:last-child{border-bottom:0}
+.cline .nm{flex:1;min-width:0}
+.cline .nm b{display:block;font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cline .nm span{font-size:12px;color:var(--muted)}
+.qx{display:flex;align-items:center;gap:6px;flex:0 0 auto}
+.qx button{width:40px;height:40px;border:0;border-radius:11px;background:#e8eef1;
+  font-size:22px;font-weight:700;font-family:inherit;cursor:pointer;color:var(--ink);line-height:1}
+.qx b{min-width:30px;text-align:center;font-size:18px}
+.rm{border:0;background:none;color:var(--bad);font-size:20px;cursor:pointer;padding:2px 4px;flex:0 0 auto}
+.trow{display:flex;justify-content:space-between;align-items:center;font-size:16px;padding-top:12px}
+.trow b{font-size:24px;font-weight:800;color:var(--brand)}
+.paybar{
+  position:fixed;left:0;right:0;bottom:calc(60px + env(safe-area-inset-bottom));
+  background:#fff;border-top:1px solid var(--line);padding:10px 14px;z-index:19;
+  box-shadow:0 -3px 12px rgba(0,0,0,.07);display:none
+}
+.paybar.on{display:block}
+.paybar .inner{max-width:640px;margin:0 auto;display:flex;align-items:center;gap:12px}
+.paybar .sum{flex:1;line-height:1.35}
+.paybar .sum small{display:block;font-size:12px;color:var(--muted)}
+.paybar .sum b{font-size:22px;font-weight:800}
+.paybar button{flex:0 0 auto;border:0;border-radius:14px;padding:14px 18px;background:var(--brand);
+  color:#fff;font-size:17px;font-weight:700;font-family:inherit;cursor:pointer}
+.paybar button:active{background:var(--brand-d)}
+body.paying main{padding-bottom:172px}
+nav button i{font-style:normal;font-size:11px}
 #dCode{direction:rtl;text-align:right;line-height:2}
 #expList .item .nm b{white-space:normal}
 h2{font-size:17px;margin:0 0 10px}
@@ -149,6 +187,38 @@ h2{font-size:17px;margin:0 0 10px}
         <input id="manualCode" inputmode="numeric" placeholder="مثلاً ۶۲۶۰۱۰۰۲۳۴۵۶۷">
         <button class="btn sec" style="flex:0 0 100px" id="btnManual">جستجو</button>
       </div>
+    </div>
+  </section>
+
+  <!-- ============ فروش (سبد) ============ -->
+  <section id="v-cart" hidden>
+    <div class="card">
+      <div class="scanbox">
+        <video id="cVideo" playsinline muted></video>
+        <div class="scanline" id="cScanline"></div>
+      </div>
+      <button class="btn" id="cBtnScan">📷 اسکن پشت‌سرهم</button>
+      <button class="btn sec" id="cBtnEngine" hidden>🔁 اگر نمی‌خواند، این را بزن</button>
+      <p class="hint" id="cHint">دوربین روشن می‌ماند؛ هر بارکدی بزنی به سبد اضافه می‌شود.</p>
+    </div>
+
+    <div class="card">
+      <h2 id="cartTitle">سبد خرید</h2>
+      <div id="cartBox"></div>
+      <div class="trow" id="cartTotalRow" hidden><span>جمع فاکتور</span><b id="cartTotal">۰</b></div>
+      <button class="btn danger" id="btnClearCart" style="margin-top:12px" hidden>🗑 خالی کردن سبد</button>
+    </div>
+
+    <div class="card">
+      <h2>افزودن با اسم</h2>
+      <input id="cSearch" placeholder="🔍 اسم کالا را بنویس">
+      <div id="cResults"></div>
+    </div>
+
+    <div class="card">
+      <h2>پرفروش‌ها</h2>
+      <p class="sub">یک ضربه = یکی به سبد. این لیست خودش از روی فروش‌های قبلی مرتب می‌شود.</p>
+      <div class="qgrid" id="quickBox"></div>
     </div>
   </section>
 
@@ -208,8 +278,16 @@ h2{font-size:17px;margin:0 0 10px}
   </section>
 </main>
 
+<div class="paybar" id="payBar">
+  <div class="inner">
+    <span class="sum"><small id="payLines">۰ قلم</small><b id="payTotal">۰ تومان</b></span>
+    <button id="btnPay">✅ ثبت فروش</button>
+  </div>
+</div>
+
 <nav>
   <button data-v="scan" class="on"><b>📷</b>اسکن</button>
+  <button data-v="cart"><b>🛒</b><i id="navCart">فروش</i></button>
   <button data-v="list"><b>📋</b>کالاها</button>
   <button data-v="exp"><b>⏳</b>انقضا</button>
   <button data-v="backup"><b>⚙️</b>تنظیمات</button>
@@ -230,7 +308,8 @@ h2{font-size:17px;margin:0 0 10px}
       <input id="dQty" inputmode="numeric" value="1">
       <button class="plus" id="dPlus">+</button>
     </div>
-    <button class="btn" id="dApplyPlus" style="margin-top:12px">➕ افزودن به موجودی (ورود کالا)</button>
+    <button class="btn" id="dToCart" style="margin-top:12px">🛒 افزودن به سبد فروش</button>
+    <button class="btn" id="dApplyPlus">➕ افزودن به موجودی (ورود کالا)</button>
     <button class="btn danger" id="dApplyMinus">➖ کم کردن از موجودی (فروش)</button>
     <button class="btn sec" id="dEdit">✏️ ویرایش نام و قیمت</button>
     <button class="btn ghost" id="dClose">بستن</button>
@@ -321,7 +400,7 @@ const DEFAULT_CFG = {
   url:   "https://script.google.com/macros/s/AKfycbzcq7yiRqSSPljHszT8nXr2IGRUGaD8WxzGOl_j48EAcNg-FTI-LYp99dsp0Fm_ftFVoQ/exec",
   token: "Hadis1376"
 };
-const APP_VERSION = "2.1";
+const APP_VERSION = "2.2";
 // آدرس‌های بازنشسته؛ گوشی‌هایی که این‌ها را ذخیره کرده‌اند خودکار به‌روز می‌شوند
 const OLD_URLS = [
   "https://script.google.com/macros/s/AKfycbzl9lOm--guC8maTXt5gsy8cSytkxFEg_Hr6FpLtG1jxP9snVFSgs03j3OQoSY7ALHijQ/exec",
@@ -520,7 +599,7 @@ $("#fPer").onchange = () => {
 };
 
 /* ---------------- داده ---------------- */
-let DB = {items: [], hist: [], queue: [], cfg: {}};
+let DB = {items: [], hist: [], queue: [], cfg: {}, cart: []};
 
 function load(){
   try{
@@ -529,6 +608,7 @@ function load(){
   }catch(e){ DB = {items: [], hist: [], queue: [], cfg: {}}; }
   DB.items = DB.items || []; DB.hist = DB.hist || [];
   DB.queue = DB.queue || []; DB.cfg  = DB.cfg  || {};
+  DB.cart  = DB.cart  || [];   // سبد نیمه‌کاره با بستن اپ از بین نمی‌رود
 
   // اتصال خودکار: کاربر هیچ آدرس و رمزی وارد نمی‌کند
   if(!DB.cfg.url)    DB.cfg.url    = DEFAULT_CFG.url;
@@ -571,12 +651,14 @@ function logHist(item, delta, after){
 
 /* ---------------- ناوبری ---------------- */
 function show(v){
-  ["scan","list","exp","backup"].forEach(x => { $("#v-" + x).hidden = (x !== v); });
+  ["scan","cart","list","exp","backup"].forEach(x => { $("#v-" + x).hidden = (x !== v); });
   document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.v === v));
-  if(v !== "scan") stopScan();
+  if(v !== SMODE) stopScan();          // دوربینِ تبِ دیگر خاموش می‌شود
+  if(v === "cart"){ renderCart(); renderQuick(); renderCResults(); }
   if(v === "list") renderList();
   if(v === "exp") renderExp();
   if(v === "backup") renderHist();
+  renderCart();          // نوار «ثبت فروش» فقط در تب فروش دیده می‌شود
 }
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => show(b.dataset.v));
 
@@ -643,6 +725,184 @@ function esc(s){
 $("#search").oninput = renderList;
 function updateCount(){ $("#hdrCount").textContent = fa(DB.items.length) + " کالا"; }
 
+/* ============================================================
+   فروش: سبد خرید
+   کالاها یکی‌یکی به سبد می‌روند (اسکن، جستجو، یا میان‌بر پرفروش‌ها)
+   و آخرش با یک دکمه همه‌شان یکجا از موجودی کم می‌شوند.
+   ============================================================ */
+
+// «ي» عربی و «ك» عربی و نیم‌فاصله را یکدست می‌کند تا جستجو گیر نکند
+function norm(s){
+  return toEn(s).replace(/[يیۍ]/g, "ی").replace(/[كک]/g, "ک")
+                .replace(/ة/g, "ه").replace(/[‌‏‎]/g, " ")
+                .replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+function cartLines(){
+  const out = [];
+  (DB.cart || []).forEach(l => {
+    const it = DB.items.find(i => i.id === l.id);
+    if(it && num(l.q) > 0) out.push({it, q: num(l.q)});
+  });
+  return out;
+}
+function cartTotal(){
+  let t = 0;
+  cartLines().forEach(l => t += num(l.it.price) * l.q);
+  return t;
+}
+function addToCart(id, q){
+  const it = DB.items.find(i => i.id === id);
+  if(!it) return null;
+  q = num(q || 1) || 1;
+  const line = (DB.cart = DB.cart || []).find(l => l.id === id);
+  if(line) line.q = num(line.q) + q; else DB.cart.push({id, q});
+  save(); renderCart();
+  return it;
+}
+function setCartQty(id, q){
+  q = num(q);
+  if(q <= 0) DB.cart = (DB.cart || []).filter(l => l.id !== id);
+  else{
+    const line = (DB.cart || []).find(l => l.id === id);
+    if(line) line.q = q;
+  }
+  save(); renderCart();
+}
+
+function renderCart(){
+  const lines = cartLines();
+  const box = $("#cartBox");
+  if(box){
+    if(!lines.length){
+      box.innerHTML = '<div class="empty">سبد خالی است.<br>با اسکن، جستجو یا میان‌بر پرفروش‌ها کالا اضافه کن.</div>';
+    }else{
+      box.innerHTML = lines.map(({it, q}) => `
+        <div class="cline" data-id="${it.id}">
+          <button class="rm" data-act="rm">✕</button>
+          <div class="nm">
+            <b>${esc(it.name)}</b>
+            <span>${fa(it.price)} × ${fa(q)} = ${fa(num(it.price) * q)} تومان${
+              num(it.stock) - q < 0 ? ' • <span style="color:var(--bad)">بیشتر از موجودی</span>' : ""}</span>
+          </div>
+          <span class="qx">
+            <button data-act="m">−</button><b>${fa(q)}</b><button data-act="p">+</button>
+          </span>
+        </div>`).join("");
+      box.querySelectorAll(".cline").forEach(el => {
+        const id = el.dataset.id;
+        el.querySelectorAll("button").forEach(b => b.onclick = () => {
+          const cur = (DB.cart.find(l => l.id === id) || {q: 0}).q;
+          if(b.dataset.act === "p") setCartQty(id, num(cur) + 1);
+          else if(b.dataset.act === "m") setCartQty(id, num(cur) - 1);
+          else setCartQty(id, 0);
+        });
+      });
+    }
+  }
+  const t = cartTotal(), n = lines.length;
+  const has = n > 0;
+  if($("#cartTitle")) $("#cartTitle").textContent = has ? "سبد خرید — " + fa(n) + " قلم" : "سبد خرید";
+  if($("#cartTotalRow")) $("#cartTotalRow").hidden = !has;
+  if($("#cartTotal")) $("#cartTotal").textContent = fa(t) + " تومان";
+  if($("#btnClearCart")) $("#btnClearCart").hidden = !has;
+  if($("#payTotal")) $("#payTotal").textContent = fa(t) + " تومان";
+  if($("#payLines")) $("#payLines").textContent = fa(n) + " قلم، " +
+    fa(lines.reduce((s, l) => s + l.q, 0)) + " عدد";
+  const bar = $("#payBar");
+  const onCart = !$("#v-cart").hidden;
+  if(bar) bar.classList.toggle("on", has && onCart);
+  document.body.classList.toggle("paying", has && onCart);
+  if($("#navCart")) $("#navCart").textContent = has ? "فروش (" + fa(n) + ")" : "فروش";
+}
+
+/* میان‌بر پرفروش‌ها: از روی تاریخچهٔ فروشِ همین گوشی ساخته می‌شود */
+function renderQuick(){
+  const box = $("#quickBox");
+  if(!box) return;
+  const score = {};
+  (DB.hist || []).forEach((h, idx) => {
+    if(h.d >= 0) return;                       // فقط فروش‌ها، نه ورود کالا
+    const it = DB.items.find(i => i.name === h.n);
+    if(!it) return;
+    // تازه‌ترها کمی وزن بیشتری می‌گیرند
+    score[it.id] = (score[it.id] || 0) + Math.abs(h.d) * (idx < 40 ? 1.5 : 1);
+  });
+  let ids = Object.keys(score).sort((a, b) => score[b] - score[a]).slice(0, 12);
+  if(ids.length < 12){
+    DB.items.slice()
+      .sort((a, b) => (b.at || 0) - (a.at || 0))
+      .forEach(i => { if(ids.length < 12 && ids.indexOf(i.id) < 0) ids.push(i.id); });
+  }
+  const items = ids.map(id => DB.items.find(i => i.id === id)).filter(Boolean);
+  if(!items.length){
+    box.innerHTML = '<div class="empty">هنوز کالایی ثبت نشده.</div>';
+    return;
+  }
+  box.innerHTML = items.map(i =>
+    `<button class="qbtn" data-id="${i.id}">${esc(i.name)}<small>${fa(i.price)} ت • موجودی ${fa(i.stock)}</small></button>`
+  ).join("");
+  box.querySelectorAll(".qbtn").forEach(b => b.onclick = () => {
+    const it = addToCart(b.dataset.id, 1);
+    if(it){ beep(true); toast("🛒 " + it.name); }
+  });
+}
+
+/* جستجوی سریع داخل تب فروش */
+function renderCResults(){
+  const box = $("#cResults");
+  if(!box) return;
+  const q = norm($("#cSearch") ? $("#cSearch").value : "");
+  if(!q){ box.innerHTML = ""; return; }
+  const items = DB.items
+    .filter(i => norm(i.name).includes(q) || toEn(i.code || "").includes(q))
+    .slice(0, 8);
+  if(!items.length){ box.innerHTML = '<div class="empty">کالایی پیدا نشد.</div>'; return; }
+  box.innerHTML = items.map(i => `
+    <div class="item" data-id="${i.id}">
+      <div class="nm"><b>${esc(i.name)}</b><span>${fa(i.price)} تومان • موجودی ${fa(i.stock)}</span></div>
+      <span class="pill">🛒 افزودن</span>
+    </div>`).join("");
+  box.querySelectorAll(".item").forEach(el => el.onclick = () => {
+    const it = addToCart(el.dataset.id, 1);
+    if(it){ beep(true); toast("🛒 " + it.name); }
+  });
+}
+
+/* ثبت فروش: کل سبد یکجا از موجودی کم می‌شود و فقط یک بار همگام می‌شویم */
+function checkout(){
+  const lines = cartLines();
+  if(!lines.length){ toast("سبد خالی است"); return; }
+  const neg = lines.filter(l => num(l.it.stock) - l.q < 0);
+  if(neg.length && !confirm("موجودی این کالاها از صفر کمتر می‌شود:\n" +
+      neg.map(l => "• " + l.it.name).join("\n") + "\n\nادامه می‌دهید؟")) return;
+
+  const total = cartTotal();
+  lines.forEach(({it, q}) => {
+    it.stock = num(it.stock) - q;
+    it.at = Date.now();
+    logHist(it, -q, it.stock);
+    queueOp({op: "delta", id: it.id, qty: -q});   // همهٔ عملیات‌ها در یک صف، یک ارسال
+  });
+  DB.cart = [];
+  save(); renderCart(); renderQuick(); renderList(); renderExp();
+  beep(true);
+  toast("✅ فروش ثبت شد • " + fa(total) + " تومان");
+  sync(false);
+}
+
+$("#btnPay").onclick = checkout;
+$("#btnClearCart").onclick = () => {
+  if(!confirm("سبد خالی شود؟ (چیزی از موجودی کم نمی‌شود)")) return;
+  DB.cart = []; save(); renderCart(); toast("سبد خالی شد");
+};
+$("#cSearch").oninput = renderCResults;
+$("#cSearch").addEventListener("keydown", e => {
+  if(e.key !== "Enter") return;
+  const first = $("#cResults .item");
+  if(first){ first.click(); $("#cSearch").value = ""; renderCResults(); }
+});
+
 /* ---------------- شیت کالا ---------------- */
 let CUR = null;
 function openItem(item){
@@ -662,6 +922,14 @@ function openItem(item){
 $("#dClose").onclick  = () => $("#sheetItem").classList.remove("on");
 $("#dPlus").onclick   = () => $("#dQty").value = num($("#dQty").value) + 1;
 $("#dMinus").onclick  = () => $("#dQty").value = Math.max(0, num($("#dQty").value) - 1);
+$("#dToCart").onclick = () => {
+  if(!CUR) return;
+  const q = num($("#dQty").value) || 1;
+  addToCart(CUR.id, q);
+  $("#sheetItem").classList.remove("on");
+  beep(true); toast("🛒 " + fa(q) + " × " + CUR.name + " به سبد رفت");
+  show("cart");
+};
 $("#dApplyPlus").onclick  = () => applyDelta(+1);
 $("#dApplyMinus").onclick = () => applyDelta(-1);
 
@@ -836,12 +1104,26 @@ $("#manualCode").addEventListener("keydown", e => { if(e.key === "Enter") $("#bt
  * خودکار به دومی سوییچ می‌کنیم.
  */
 let stream = null, scanning = false, rafId = null, zx = null;
-let lastHit = {c: "", t: 0}, watchdog = null, engine = "";
+let lastHit = {c: "", t: 0}, lastAny = 0, watchdog = null, engine = "";
+
+/* دو جای اپ دوربین دارند: تب اسکن (برای دیدن و ویرایش کالا) و تب فروش
+   (که دوربین روشن می‌ماند و هر بارکد مستقیم به سبد می‌رود). */
+const SCAN_UI = {
+  scan: {v: "#video",  line: "#scanline",  btn: "#btnScan",    eng: "#btnEngine",  hint: "#scanHint",
+         start: "📷 شروع اسکن بارکد", stop: "■ توقف اسکن",
+         idle: "دوربین را روی بارکد کالا بگیرید"},
+  cart: {v: "#cVideo", line: "#cScanline", btn: "#cBtnScan",   eng: "#cBtnEngine", hint: "#cHint",
+         start: "📷 اسکن پشت‌سرهم", stop: "■ توقف دوربین",
+         idle: "دوربین روشن می‌ماند؛ هر بارکدی بزنی به سبد اضافه می‌شود."}
+};
+let SMODE = "scan";
+function U(k){ return $(SCAN_UI[SMODE][k]); }
+function UT(k){ return SCAN_UI[SMODE][k]; }
 
 const FORMATS = ["ean_13","ean_8","upc_a","upc_e","code_128","code_39","itf","codabar","qr_code"];
 
 async function startScan(forceZX){
-  const v = $("#video");
+  const v = U("v");
   try{
     stream = await navigator.mediaDevices.getUserMedia({
       video: {facingMode: {ideal: "environment"}, width: {ideal: 1280}, height: {ideal: 720}},
@@ -849,14 +1131,14 @@ async function startScan(forceZX){
     });
   }catch(e){
     toast("دسترسی به دوربین ممکن نشد");
-    $("#scanHint").textContent = "دوربین باز نشد. از «ورود دستی بارکد» استفاده کنید. (دوربین فقط روی آدرس https کار می‌کند)";
+    U("hint").textContent = "دوربین باز نشد. از جستجوی اسم استفاده کنید. (دوربین فقط روی آدرس https کار می‌کند)";
     return;
   }
-  v.srcObject = stream; v.style.display = "block"; $("#scanline").style.display = "block";
+  v.srcObject = stream; v.style.display = "block"; U("line").style.display = "block";
   try{ await v.play(); }catch(e){}
   scanning = true;
-  $("#btnScan").textContent = "■ توقف اسکن";
-  $("#btnEngine").hidden = false;
+  U("btn").textContent = UT("stop");
+  U("eng").hidden = false;
 
   let native = false;
   if(!forceZX && "BarcodeDetector" in window){
@@ -872,7 +1154,9 @@ async function startScan(forceZX){
 
 function startNative(v){
   engine = "native";
-  $("#scanHint").textContent = "بارکد را داخل کادر بگیرید…";
+  U("hint").textContent = SMODE === "cart"
+    ? "بارکد بگیر جلوی دوربین؛ خودش به سبد اضافه می‌شود…"
+    : "بارکد را داخل کادر بگیرید…";
   const det = new window.BarcodeDetector({formats: FORMATS});
   const loop = async () => {
     if(!scanning || engine !== "native") return;
@@ -896,50 +1180,85 @@ function startNative(v){
 function startZX(v, auto){
   clearTimeout(watchdog); watchdog = null;
   if(!window.ZXing){
-    $("#scanHint").textContent = "بارکدخوان در دسترس نیست؛ از ورود دستی استفاده کنید.";
+    U("hint").textContent = "بارکدخوان در دسترس نیست؛ از ورود دستی استفاده کنید.";
     return;
   }
   engine = "zxing";
-  $("#scanHint").textContent = auto
+  U("hint").textContent = auto
     ? "روش دوم اسکن فعال شد. کمی صبر کن و بارکد را ثابت نگه دار…"
     : "روش دوم اسکن — بارکد را داخل کادر بگیر…";
   try{
     zx = new window.ZXing.BrowserMultiFormatReader();
     zx.decodeFromStream(stream, v, res => { if(res) onHit(res.getText()); });
   }catch(e){
-    $("#scanHint").textContent = "اسکن ممکن نشد: " + (e.message || e);
+    U("hint").textContent = "اسکن ممکن نشد: " + (e.message || e);
   }
 }
 
 function onHit(code){
   const now = Date.now();
-  if(code === lastHit.c && now - lastHit.t < 2500) return;
+  const gapAny = now - lastAny;   // چند وقت است که دوربین هیچ بارکدی نمی‌بیند
+  lastAny = now;
+
+  if(code === lastHit.c){
+    if(SMODE === "cart"){
+      /* در حالت فروش، یک جنس تا وقتی جلوی دوربین است فقط یک بار شمرده می‌شود.
+         برای شمردن دومی باید جنس را برداری و دوباره بگیری (یک مکث کوتاه). */
+      if(gapAny < 1200 || now - lastHit.t < 900){ lastHit.t = now; return; }
+    }else if(now - lastHit.t < 2500) return;
+  }
   lastHit = {c: code, t: now};
+
+  if(SMODE === "cart"){
+    const item = findByCode(code);
+    if(item){
+      addToCart(item.id, 1);
+      beep(true);
+      toast("🛒 " + item.name + " • جمع: " + fa(cartTotal()) + " ت");
+      return;                      // دوربین روشن می‌ماند تا جنس بعدی
+    }
+    beep(false); stopScan(); openUnknown(code); return;
+  }
+
   stopScan();
   handleCode(code);
 }
 
 function stopScan(){
-  scanning = false; engine = "";
+  scanning = false; engine = ""; lastAny = 0;
   clearTimeout(watchdog); watchdog = null;
   if(rafId){ cancelAnimationFrame(rafId); rafId = null; }
   if(zx){ try{ zx.reset(); }catch(e){} zx = null; }
   if(stream){ stream.getTracks().forEach(t => t.stop()); stream = null; }
-  const v = $("#video"); v.srcObject = null; v.style.display = "none";
-  $("#scanline").style.display = "none";
-  $("#btnScan").textContent = "📷 شروع اسکن بارکد";
-  $("#btnEngine").hidden = true;
-  $("#scanHint").textContent = "دوربین را روی بارکد کالا بگیرید";
+  // هر دو دوربین خاموش و پاک می‌شوند تا هیچ تصویری جا نماند
+  Object.keys(SCAN_UI).forEach(k => {
+    const c = SCAN_UI[k], v = $(c.v);
+    if(v){ v.srcObject = null; v.style.display = "none"; }
+    if($(c.line)) $(c.line).style.display = "none";
+    if($(c.btn))  $(c.btn).textContent = c.start;
+    if($(c.eng))  $(c.eng).hidden = true;
+    if($(c.hint)) $(c.hint).textContent = c.idle;
+  });
 }
 
 // دکمهٔ دستی برای وقتی که کاربر خودش می‌خواهد موتور را عوض کند
-$("#btnEngine").onclick = () => {
+function toggleEngine(){
   if(!scanning) return;
   const toZX = engine !== "zxing";
+  const mode = SMODE;
   stopScan();
-  setTimeout(() => startScan(toZX), 250);
+  setTimeout(() => { SMODE = mode; startScan(toZX); }, 250);
+}
+$("#btnEngine").onclick  = toggleEngine;
+$("#cBtnEngine").onclick = toggleEngine;
+$("#btnScan").onclick = () => {
+  if(scanning && SMODE === "scan") return stopScan();
+  stopScan(); SMODE = "scan"; startScan();
 };
-$("#btnScan").onclick = () => scanning ? stopScan() : startScan();
+$("#cBtnScan").onclick = () => {
+  if(scanning && SMODE === "cart") return stopScan();
+  stopScan(); SMODE = "cart"; startScan();
+};
 document.addEventListener("visibilitychange", () => { if(document.hidden) stopScan(); });
 
 /* ---------------- همگام‌سازی با گوگل‌شیت ---------------- */
@@ -1007,7 +1326,7 @@ async function sync(manual){
     DB.items = d.items || [];
     applyQueueLocally();
     lastOk = Date.now(); DB.cfg.everSynced = true;
-    save(); updateCount(); renderList(); renderExp();
+    save(); updateCount(); renderList(); renderExp(); renderCart(); renderQuick();
     setSyncUI(); if(manual) toast("همگام شد • " + fa(DB.items.length) + " کالا");
   }catch(e){
     const net = /fetch|network|Load failed/i.test(e.message || "");
@@ -1103,7 +1422,7 @@ $("#fileIn").onchange = e => {
       const d = JSON.parse(r.result);
       if(!d || !Array.isArray(d.items)) throw 0;
       if(!confirm("اطلاعات فعلی با فایل پشتیبان جایگزین شود؟")) return;
-      DB = {items: d.items, hist: d.hist || []};
+      DB = {items: d.items, hist: d.hist || [], queue: DB.queue || [], cfg: DB.cfg || {}, cart: []};
       save(); updateCount(); renderList(); renderHist();
       toast("بازگردانی شد: " + fa(DB.items.length) + " کالا");
     }catch(err){ toast("فایل معتبر نیست"); }
@@ -1115,8 +1434,8 @@ $("#btnWipe").onclick = () => {
   if(!confirm("اطلاعات روی این گوشی پاک شود و دوباره از گوگل‌شیت خوانده شود؟\n\n" +
               "روی شیت چیزی پاک نمی‌شود.")) return;
   // تنظیمات اتصال حفظ می‌شود؛ فقط دادهٔ محلی و صفِ نفرستاده پاک می‌شوند
-  DB.items = []; DB.hist = []; DB.queue = []; DB.cfg.everSynced = true;
-  save(); updateCount(); renderList(); renderHist(); setSyncUI();
+  DB.items = []; DB.hist = []; DB.queue = []; DB.cart = []; DB.cfg.everSynced = true;
+  save(); updateCount(); renderList(); renderHist(); renderCart(); setSyncUI();
   toast("پاک شد — در حال خواندن از شیت…");
   sync(true);
 };
@@ -1146,7 +1465,7 @@ $("#btnUpdate").onclick = async () => {
 };
 
 /* ---------------- شروع ---------------- */
-load(); updateCount(); renderList(); show("scan");
+load(); updateCount(); renderList(); renderCart(); show("scan");
 $("#cfgUrl").value    = DB.cfg.url    || "";
 $("#cfgToken").value  = DB.cfg.token  || "";
 $("#cfgDevice").value = DB.cfg.device || "";
