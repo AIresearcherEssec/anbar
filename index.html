@@ -105,6 +105,15 @@ nav button.on{color:var(--brand);font-weight:700}
 }
 .toast.on{opacity:1}
 .tag{font-size:12px;color:var(--muted);direction:ltr;display:inline-block}
+.chk{display:flex;align-items:center;gap:10px;margin:16px 0 4px;font-size:16px;color:var(--ink)}
+.chk input{width:22px;height:22px;flex:0 0 22px}
+.badge{font-size:12px;border-radius:8px;padding:2px 8px;font-weight:700;white-space:nowrap}
+.b-red{background:#fee2e2;color:var(--bad)}
+.b-amb{background:#fef3c7;color:var(--warn)}
+.b-ok{background:#dcfce7;color:var(--ok)}
+.cat{font-size:12px;color:var(--muted)}
+#dCode{direction:rtl;text-align:right;line-height:2}
+#expList .item .nm b{white-space:normal}
 h2{font-size:17px;margin:0 0 10px}
 .sub{color:var(--muted);font-size:14px;margin:0 0 14px}
 </style>
@@ -145,6 +154,15 @@ h2{font-size:17px;margin:0 0 10px}
     </div>
     <div class="card" id="listBox"></div>
     <button class="btn ghost" id="btnNew">➕ افزودن کالای جدید</button>
+  </section>
+
+  <!-- ============ انقضا ============ -->
+  <section id="v-exp" hidden>
+    <div class="card">
+      <h2>کالاهای تاریخ‌دار</h2>
+      <p class="sub">نزدیک‌ترین انقضا بالاتر است. قرمز یعنی گذشته یا کمتر از یک هفته، نارنجی یعنی کمتر از یک ماه.</p>
+      <div id="expList"></div>
+    </div>
   </section>
 
   <!-- ============ پشتیبان ============ -->
@@ -188,6 +206,7 @@ h2{font-size:17px;margin:0 0 10px}
 <nav>
   <button data-v="scan" class="on"><b>📷</b>اسکن</button>
   <button data-v="list"><b>📋</b>کالاها</button>
+  <button data-v="exp"><b>⏳</b>انقضا</button>
   <button data-v="backup"><b>⚙️</b>تنظیمات</button>
 </nav>
 
@@ -257,9 +276,26 @@ h2{font-size:17px;margin:0 0 10px}
     </div>
     <label>واحد شمارش</label>
     <select id="fUnit">
-      <option>عدد</option><option>بسته</option><option>کارتن</option>
+      <option>عدد</option><option>بسته</option><option>کارتن</option><option>جعبه</option>
       <option>کیلوگرم</option><option>گرم</option><option>حلب</option><option>شانه</option>
+      <option>پاکت</option><option>کیسه</option><option>رول</option><option>متر</option>
     </select>
+
+    <label>دسته‌بندی</label>
+    <select id="fCat"></select>
+    <input id="fCatNew" placeholder="اسم دستهٔ جدید را بنویس" hidden>
+
+    <label class="chk"><input type="checkbox" id="fPer"> این کالا زود فاسد می‌شود (تاریخ انقضا دارد)</label>
+    <div id="expBox" hidden>
+      <label>تاریخ انقضا (شمسی)</label>
+      <div class="row">
+        <select id="expD"></select>
+        <select id="expM"></select>
+        <select id="expY"></select>
+      </div>
+      <p class="hint" id="expHint"></p>
+    </div>
+
     <button class="btn" id="fSave" style="margin-top:16px">ذخیره</button>
     <button class="btn danger" id="fDelete">حذف این کالا</button>
     <button class="btn ghost" id="fClose">انصراف</button>
@@ -279,7 +315,7 @@ const DEFAULT_CFG = {
   url:   "https://script.google.com/macros/s/AKfycbzl9lOm--guC8maTXt5gsy8cSytkxFEg_Hr6FpLtG1jxP9snVFSgs03j3OQoSY7ALHijQ/exec",
   token: "Hadis1376"
 };
-const APP_VERSION = "1.6";
+const APP_VERSION = "1.7";
 
 /* ---------------- کمکی‌ها ---------------- */
 const $ = s => document.querySelector(s);
@@ -297,6 +333,8 @@ function num(s){
 function fa(n){
   return Number(n || 0).toLocaleString("fa-IR", {maximumFractionDigits: 3});
 }
+// ارقام فارسی بدون جداکنندهٔ هزار — برای سال و تاریخ
+function faD(n){ return String(n).replace(/\d/g, d => FA[+d]); }
 function toast(msg){
   const t = $("#toast"); t.textContent = msg; t.classList.add("on");
   clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 2200);
@@ -312,6 +350,157 @@ function beep(ok){
     setTimeout(() => ctx.close(), 400);
   }catch(e){}
 }
+
+/* ---------------- تقویم شمسی ---------------- */
+/* الگوریتم استاندارد jalaali؛ با شش تاریخ شناخته‌شده و سال‌های کبیسه تست شده است */
+function jdiv(a, b){ return ~~(a / b); }
+function jalCal(jy){
+  const breaks = [-61,9,38,199,426,686,756,818,1111,1181,1210,1635,2060,2097,2192,2262,2324,2394,2456,3178];
+  let jp = breaks[0], jm, jump = 0, leapJ = -14, n, i;
+  const gy = jy + 621;
+  for(i = 1; i < breaks.length; i++){
+    jm = breaks[i]; jump = jm - jp;
+    if(jy < jm) break;
+    leapJ += jdiv(jump, 33) * 8 + jdiv(jump % 33, 4);
+    jp = jm;
+  }
+  n = jy - jp;
+  leapJ += jdiv(n, 33) * 8 + jdiv(n % 33 + 3, 4);
+  if((jump % 33) === 4 && jump - n === 4) leapJ++;
+  const leapG = jdiv(gy, 4) - jdiv((jdiv(gy, 100) + 1) * 3, 4) - 150;
+  const march = 20 + leapJ - leapG;
+  if(jump - n < 6) n = n - jump + jdiv(jump + 4, 33) * 33;
+  let leap = ((n + 1) % 33 - 1) % 4;
+  if(leap === -1) leap = 4;
+  return {leap, gy, march};
+}
+function g2d(gy, gm, gd){
+  let d = jdiv((gy + jdiv(gm - 8, 6) + 100100) * 1461, 4) + jdiv(153 * ((gm + 9) % 12) + 2, 5) + gd - 34840408;
+  return d - jdiv(jdiv(gy + 100100 + jdiv(gm - 8, 6), 100) * 3, 4) + 752;
+}
+function d2g(jdn){
+  let j = 4 * jdn + 139361631;
+  j += jdiv(jdiv(4 * jdn + 183187720, 146097) * 3, 4) * 4 - 3908;
+  const i = jdiv(j % 1461, 4) * 5 + 308;
+  return {gy: jdiv(j, 1461) - 100100 + jdiv(8 - (jdiv(i, 153) % 12 + 1), 6),
+          gm: jdiv(i, 153) % 12 + 1, gd: jdiv(i % 153, 5) + 1};
+}
+function j2d(jy, jm, jd){
+  const r = jalCal(jy);
+  return g2d(r.gy, 3, r.march) + (jm - 1) * 31 - jdiv(jm, 7) * (jm - 7) + jd - 1;
+}
+function d2j(jdn){
+  const gy = d2g(jdn).gy;
+  let jy = gy - 621, k;
+  const r = jalCal(jy), jdn1f = g2d(gy, 3, r.march);
+  k = jdn - jdn1f;
+  if(k >= 0){
+    if(k <= 185) return {jy, jm: 1 + jdiv(k, 31), jd: (k % 31) + 1};
+    k -= 186;
+  }else{ jy--; k += 179; if(r.leap === 1) k++; }
+  return {jy, jm: 7 + jdiv(k, 30), jd: (k % 30) + 1};
+}
+function monthLen(jy, jm){ return jm <= 6 ? 31 : (jm <= 11 ? 30 : (jalCal(jy).leap === 0 ? 30 : 29)); }
+function todayJ(){ const n = new Date(); return d2j(g2d(n.getFullYear(), n.getMonth() + 1, n.getDate())); }
+const J_MONTHS = ["فروردین","اردیبهشت","خرداد","تیر","مرداد","شهریور",
+                  "مهر","آبان","آذر","دی","بهمن","اسفند"];
+// «۱۴۰۵/۰۹/۰۳» → چند روز مانده (منفی یعنی گذشته)
+function daysLeft(exp){
+  const m = /^(\d{4})\/(\d{1,2})\/(\d{1,2})$/.exec(toEn(exp || "").trim());
+  if(!m) return null;
+  const t = todayJ();
+  return j2d(+m[1], +m[2], +m[3]) - j2d(t.jy, t.jm, t.jd);
+}
+function expLabel(exp){
+  const d = daysLeft(exp);
+  if(d === null) return null;
+  if(d < 0)  return {cls: "b-red", txt: "منقضی شده"};
+  if(d === 0) return {cls: "b-red", txt: "امروز آخرین روز"};
+  if(d <= 7)  return {cls: "b-red", txt: fa(d) + " روز مانده"};
+  if(d <= 30) return {cls: "b-amb", txt: fa(d) + " روز مانده"};
+  return {cls: "b-ok", txt: fa(d) + " روز مانده"};
+}
+
+/* ---------------- دسته‌بندی ---------------- */
+/* برگرفته از دسته‌بندی سایت لوازم قنادی شیراز */
+const CATS = [
+  ["قالب‌ها", ["آلومینیوم و گالوانیزه","پاپسیکل و دسری","پلی‌کربنات و مونوپورشن",
+    "تفلون، چدنی و گرانیتی","حلوا و شیرینی","ژله","شکلات، آبنبات و پاستیل",
+    "طلقی و پلاستیکی","کپسول کاغذی","کمربندی"]],
+  ["ابزارها", ["ابزار فوندانت و سفره‌آرایی","ابزار قنادی","ابزار گل‌سازی",
+    "ابزارهای اندازه‌گیری","استنسیل و شابلون","تاپرها","رینگ‌ها",
+    "قیف و ماسوره","گردان و استند","مهر و کاتر"]],
+  ["مواد اولیه", ["آردها","ادویه‌ها","پودر کیک و دسر","تارت و بیسکویت","خامه","خمیرها",
+    "رژیمی","روغن و کره","شکلات‌ها","فیلینگ و تاپینگ","لبنیات","پیپرها",
+    "محصولات پودری و مایع"]],
+  ["رنگ و اسانس", ["اسپری","اسانس","رنگ خوراکی"]],
+  ["مولدها", ["مولد ابزار","مولد حاشیه","مولد حیوانات","مولد دریایی",
+    "مولد گل و میوه","مولد نوزاد و فرشته"]],
+  ["تجهیزات آشپزخانه", ["ابزار آشپزخانه","چوبی","سرامیکی","فلزی"]],
+  ["تجهیزات کافه", ["بار سرد","بار گرم","ماگ و فلاسک"]],
+  ["جعبه و بسته‌بندی", ["جعبه پلاستیکی","جعبه فلزی","جعبه مقوایی","جار کیک"]],
+  ["سایر", ["لوازم برقی قنادی","ماکت","زیردسری و زیرکیکی","لوازم تولد","ظروف و دکوری"]]
+];
+function knownCats(){
+  const s = [];
+  CATS.forEach(g => g[1].forEach(c => s.push(c)));
+  DB.items.forEach(i => { if(i.cat && s.indexOf(i.cat) < 0) s.push(i.cat); });
+  return s;
+}
+function buildCatSelect(){
+  const sel = $("#fCat");
+  const extra = DB.items.map(i => i.cat).filter(c => c && !CATS.some(g => g[1].indexOf(c) >= 0));
+  let html = '<option value="">— بدون دسته —</option>';
+  CATS.forEach(g => {
+    html += `<optgroup label="${esc(g[0])}">` +
+      g[1].map(c => `<option>${esc(c)}</option>`).join("") + "</optgroup>";
+  });
+  const uniq = [...new Set(extra)];
+  if(uniq.length){
+    html += '<optgroup label="دسته‌های خودمان">' +
+      uniq.map(c => `<option>${esc(c)}</option>`).join("") + "</optgroup>";
+  }
+  html += '<option value="__new__">➕ دستهٔ جدید…</option>';
+  sel.innerHTML = html;
+}
+$("#fCat").onchange = () => {
+  const isNew = $("#fCat").value === "__new__";
+  $("#fCatNew").hidden = !isNew;
+  if(isNew) $("#fCatNew").focus();
+};
+
+/* ---------------- انتخابگر تاریخ ---------------- */
+function fillExpSelects(sel){
+  const t = todayJ();
+  const ys = $("#expY"), ms = $("#expM"), ds = $("#expD");
+  ys.innerHTML = [t.jy, t.jy + 1, t.jy + 2, t.jy + 3]
+    .map(y => `<option value="${y}">${faD(y)}</option>`).join("");
+  ms.innerHTML = J_MONTHS.map((n, i) => `<option value="${i + 1}">${n}</option>`).join("");
+  const setDays = () => {
+    const y = num(ys.value), m = num(ms.value), keep = num(ds.value);
+    const n = monthLen(y, m);
+    ds.innerHTML = Array.from({length: n}, (_, i) => `<option value="${i + 1}">${fa(i + 1)}</option>`).join("");
+    ds.value = Math.min(keep || 1, n);
+    showExpHint();
+  };
+  ys.onchange = setDays; ms.onchange = setDays; ds.onchange = showExpHint;
+  if(sel){ ys.value = String(sel.y); ms.value = sel.m; setDays(); ds.value = sel.d; }
+  else { ms.value = t.jm; setDays(); ds.value = t.jd; }
+  showExpHint();
+}
+function readExp(){
+  const y = num($("#expY").value), m = num($("#expM").value), d = num($("#expD").value);
+  if(!y || !m || !d) return "";
+  return y + "/" + String(m).padStart(2, "0") + "/" + String(d).padStart(2, "0");
+}
+function showExpHint(){
+  const lab = expLabel(readExp());
+  $("#expHint").textContent = lab ? lab.txt : "";
+}
+$("#fPer").onchange = () => {
+  $("#expBox").hidden = !$("#fPer").checked;
+  if($("#fPer").checked && !$("#expY").options.length) fillExpSelects();
+};
 
 /* ---------------- داده ---------------- */
 let DB = {items: [], hist: [], queue: [], cfg: {}};
@@ -363,10 +552,11 @@ function logHist(item, delta, after){
 
 /* ---------------- ناوبری ---------------- */
 function show(v){
-  ["scan","list","backup"].forEach(x => { $("#v-" + x).hidden = (x !== v); });
+  ["scan","list","exp","backup"].forEach(x => { $("#v-" + x).hidden = (x !== v); });
   document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.v === v));
   if(v !== "scan") stopScan();
   if(v === "list") renderList();
+  if(v === "exp") renderExp();
   if(v === "backup") renderHist();
 }
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => show(b.dataset.v));
@@ -377,21 +567,55 @@ function renderList(){
   const box = $("#listBox");
   let items = DB.items.slice().sort((a,b) => a.name.localeCompare(b.name, "fa"));
   if(q) items = items.filter(i =>
-      i.name.toLowerCase().includes(q) || toEn(i.code || "").includes(q));
+      i.name.toLowerCase().includes(q) || toEn(i.code || "").includes(q) ||
+      (i.cat || "").toLowerCase().includes(q));
   if(!items.length){
     box.innerHTML = '<div class="empty">کالایی پیدا نشد.</div>';
     return;
   }
-  box.innerHTML = items.map(i => `
-    <div class="item" data-id="${i.id}">
+  box.innerHTML = items.map(i => {
+    const lab = expLabel(i.exp);
+    return `<div class="item" data-id="${i.id}">
       <div class="nm">
         <b>${esc(i.name)}</b>
-        <span>${fa(i.price)} تومان${i.code ? " • " + esc(i.code) : ""}</span>
+        <span>${fa(i.price)} تومان${i.cat ? " • " + esc(i.cat) : ""}</span>
+        ${lab ? `<span class="badge ${lab.cls}">${lab.txt}</span>` : ""}
       </div>
       <span class="pill ${i.stock <= 0 ? "zero" : ""}">${fa(i.stock)} ${esc(i.unit || "")}</span>
-    </div>`).join("");
+    </div>`; }).join("");
   box.querySelectorAll(".item").forEach(el =>
     el.onclick = () => openItem(DB.items.find(x => x.id === el.dataset.id)));
+}
+
+/* ---------------- تب انقضا ---------------- */
+function renderExp(){
+  const box = $("#expList");
+  if(!box) return;
+  const items = DB.items.filter(i => daysLeft(i.exp) !== null)
+    .sort((a, b) => daysLeft(a.exp) - daysLeft(b.exp));
+  if(!items.length){
+    box.innerHTML = '<div class="empty">هنوز کالای تاریخ‌داری ثبت نشده.<br>' +
+      'موقع افزودن یا ویرایش کالا، گزینهٔ «زود فاسد می‌شود» را بزن.</div>';
+    return;
+  }
+  box.innerHTML = items.map(i => {
+    const lab = expLabel(i.exp);
+    return `<div class="item" data-id="${i.id}">
+      <div class="nm">
+        <b>${esc(i.name)}</b>
+        <span>انقضا: ${fa2(i.exp)}${i.cat ? " • " + esc(i.cat) : ""}</span>
+      </div>
+      <span class="badge ${lab.cls}">${lab.txt}</span>
+      <span class="pill ${i.stock <= 0 ? "zero" : ""}">${fa(i.stock)}</span>
+    </div>`; }).join("");
+  box.querySelectorAll(".item").forEach(el =>
+    el.onclick = () => openItem(DB.items.find(x => x.id === el.dataset.id)));
+}
+// «1405/09/03» را با ارقام فارسی و نام ماه نشان می‌دهد
+function fa2(exp){
+  const m = /^(\d{4})\/(\d{1,2})\/(\d{1,2})$/.exec(toEn(exp || ""));
+  if(!m) return esc(exp || "");
+  return faD(+m[3]) + " " + J_MONTHS[+m[2] - 1] + " " + faD(+m[1]);
 }
 function esc(s){
   return String(s == null ? "" : s).replace(/[&<>"]/g, c =>
@@ -406,7 +630,10 @@ function openItem(item){
   if(!item) return;
   CUR = item;
   $("#dName").textContent  = item.name;
-  $("#dCode").textContent  = item.code ? "بارکد: " + item.code : "بدون بارکد";
+  const lab = expLabel(item.exp);
+  $("#dCode").innerHTML = (item.code ? "بارکد: " + esc(item.code) : "بدون بارکد") +
+    (item.cat ? " • " + esc(item.cat) : "") +
+    (lab ? ` <span class="badge ${lab.cls}">انقضا ${fa2(item.exp)} — ${lab.txt}</span>` : "");
   $("#dPrice").textContent = fa(item.price) + " ت";
   $("#dStock").textContent = fa(item.stock) + " " + (item.unit || "");
   $("#dStock").style.color = item.stock <= 0 ? "var(--bad)" : "";
@@ -449,6 +676,18 @@ function openForm(item, presetCode){
   $("#fPrice").value = item ? item.price : "";
   $("#fStock").value = item ? item.stock : "";
   $("#fUnit").value  = item ? (item.unit || "عدد") : "عدد";
+
+  buildCatSelect();
+  $("#fCatNew").value = ""; $("#fCatNew").hidden = true;
+  $("#fCat").value = item && item.cat ? item.cat : "";
+  if(item && item.cat && $("#fCat").value !== item.cat) $("#fCat").value = "";  // دسته‌ای که دیگر نیست
+
+  const exp = item ? (item.exp || "") : "";
+  $("#fPer").checked = !!exp;
+  $("#expBox").hidden = !exp;
+  const m = /^(\d{4})\/(\d{1,2})\/(\d{1,2})$/.exec(toEn(exp));
+  fillExpSelects(m ? {y: +m[1], m: +m[2], d: +m[3]} : null);
+
   $("#fDelete").hidden = !item;
   $("#sheetItem").classList.remove("on");
   $("#sheetForm").classList.add("on");
@@ -465,8 +704,15 @@ $("#fSave").onclick = () => {
     const dup = findByCode(code);
     if(dup && (!EDIT || dup.id !== EDIT.id)){ toast("این بارکد قبلاً برای «" + dup.name + "» ثبت شده"); return; }
   }
+  let cat = $("#fCat").value;
+  if(cat === "__new__"){
+    cat = $("#fCatNew").value.trim();
+    if(!cat){ toast("اسم دستهٔ جدید را بنویسید"); $("#fCatNew").focus(); return; }
+  }
+  const exp = $("#fPer").checked ? readExp() : "";
+
   const data = {
-    name, code,
+    name, code, cat, exp,
     price: num($("#fPrice").value),
     stock: num($("#fStock").value),
     unit:  $("#fUnit").value,
@@ -477,17 +723,17 @@ $("#fSave").onclick = () => {
     Object.assign(EDIT, data);
     // نام و قیمت جدا از موجودی فرستاده می‌شود تا فروشِ گوشی دیگر پاک نشود
     queueOp({op: "meta", id: EDIT.id, code: data.code, name: data.name,
-             price: data.price, unit: data.unit});
+             price: data.price, unit: data.unit, cat: data.cat, exp: data.exp});
     if(diff !== 0){ queueOp({op: "delta", id: EDIT.id, qty: diff}); logHist(EDIT, diff, data.stock); }
     toast("ذخیره شد");
   }else{
     const it = Object.assign({id: uid()}, data);
     DB.items.push(it);
-    queueOp({op: "upsert", id: it.id, code: it.code, name: it.name,
-             price: it.price, stock: it.stock, unit: it.unit});
+    queueOp({op: "upsert", id: it.id, code: it.code, name: it.name, price: it.price,
+             stock: it.stock, unit: it.unit, cat: it.cat, exp: it.exp});
     toast("کالا اضافه شد");
   }
-  save(); updateCount(); renderList();
+  save(); updateCount(); renderList(); renderExp();
   $("#sheetForm").classList.remove("on");
 };
 $("#fDelete").onclick = () => {
@@ -682,7 +928,7 @@ async function sync(manual){
     DB.items = d.items || [];
     applyQueueLocally();
     lastOk = Date.now(); DB.cfg.everSynced = true;
-    save(); updateCount(); renderList();
+    save(); updateCount(); renderList(); renderExp();
     setSyncUI(); if(manual) toast("همگام شد • " + fa(DB.items.length) + " کالا");
   }catch(e){
     const net = /fetch|network|Load failed/i.test(e.message || "");
@@ -698,11 +944,11 @@ function applyQueueLocally(){
   DB.queue.forEach(op => {
     const f = DB.items.find(i => i.id === op.id);
     if(op.op === "delta"){ if(f) f.stock = num(f.stock) + num(op.qty); }
-    else if(op.op === "meta"){ if(f) Object.assign(f, {code: op.code, name: op.name, price: op.price, unit: op.unit}); }
+    else if(op.op === "meta"){ if(f) Object.assign(f, {code: op.code, name: op.name, price: op.price, unit: op.unit, cat: op.cat, exp: op.exp}); }
     else if(op.op === "upsert"){
-      if(f) Object.assign(f, {code: op.code, name: op.name, price: op.price, stock: op.stock, unit: op.unit});
+      if(f) Object.assign(f, {code: op.code, name: op.name, price: op.price, stock: op.stock, unit: op.unit, cat: op.cat, exp: op.exp});
       else DB.items.push({id: op.id, code: op.code, name: op.name, price: op.price,
-                          stock: op.stock, unit: op.unit, at: Date.now()});
+                          stock: op.stock, unit: op.unit, cat: op.cat, exp: op.exp, at: Date.now()});
     }
     else if(op.op === "delete"){ DB.items = DB.items.filter(i => i.id !== op.id); }
   });
