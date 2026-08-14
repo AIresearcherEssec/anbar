@@ -255,7 +255,7 @@ const DEFAULT_CFG = {
   url:   "https://script.google.com/macros/s/AKfycbzl9lOm--guC8maTXt5gsy8cSytkxFEg_Hr6FpLtG1jxP9snVFSgs03j3OQoSY7ALHijQ/exec",
   token: "Hadis1376"
 };
-const APP_VERSION = "1.2";
+const APP_VERSION = "1.3";
 
 /* ---------------- کمکی‌ها ---------------- */
 const $ = s => document.querySelector(s);
@@ -614,8 +614,12 @@ async function sync(manual){
     save(); updateCount(); renderList();
     setSyncUI(); if(manual) toast("همگام شد • " + fa(DB.items.length) + " کالا");
   }catch(e){
+    const net = /fetch|network|Load failed/i.test(e.message || "");
     setSyncUI("وصل نشد — " + fa(DB.queue.length) + " تغییر در صف");
-    if(manual) toast("اتصال برقرار نشد: " + (e.message || e));
+    if(manual){
+      toast(net ? "به گوگل‌شیت وصل نشد. اینترنت را چک کن؛ اگر وصل بود یعنی دسترسی اسکریپت باز نیست."
+                : "خطا: " + (e.message || e));
+    }
   }finally{ syncing = false; }
 }
 // تغییراتی که هنوز به شیت نرسیده، روی دادهٔ سرور دوباره اعمال می‌شود
@@ -696,10 +700,13 @@ $("#fileIn").onchange = e => {
   e.target.value = "";
 };
 $("#btnWipe").onclick = () => {
-  if(!confirm("همهٔ کالاها و تاریخچه پاک شود؟ این کار برگشت‌پذیر نیست.")) return;
-  if(!confirm("مطمئنید؟ اول پشتیبان گرفته‌اید؟")) return;
-  DB = {items: [], hist: []}; save(); updateCount(); renderList(); renderHist();
-  toast("پاک شد");
+  if(!confirm("اطلاعات روی این گوشی پاک شود و دوباره از گوگل‌شیت خوانده شود؟\n\n" +
+              "روی شیت چیزی پاک نمی‌شود.")) return;
+  // تنظیمات اتصال حفظ می‌شود؛ فقط دادهٔ محلی و صفِ نفرستاده پاک می‌شوند
+  DB.items = []; DB.hist = []; DB.queue = []; DB.cfg.everSynced = true;
+  save(); updateCount(); renderList(); renderHist(); setSyncUI();
+  toast("پاک شد — در حال خواندن از شیت…");
+  sync(true);
 };
 function renderHist(){
   const box = $("#histBox");
