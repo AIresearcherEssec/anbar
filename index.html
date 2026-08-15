@@ -226,9 +226,9 @@ h2{font-size:17px;margin:0 0 10px}
   <section id="v-list" hidden>
     <div class="card">
       <input id="search" placeholder="🔍 جستجوی نام کالا یا بارکد">
+      <button class="btn ghost" id="btnNew" style="margin-top:12px">➕ افزودن کالای جدید</button>
     </div>
     <div class="card" id="listBox"></div>
-    <button class="btn ghost" id="btnNew">➕ افزودن کالای جدید</button>
   </section>
 
   <!-- ============ انقضا ============ -->
@@ -403,7 +403,7 @@ const DEFAULT_CFG = {
   url:   "https://script.google.com/macros/s/AKfycbzcq7yiRqSSPljHszT8nXr2IGRUGaD8WxzGOl_j48EAcNg-FTI-LYp99dsp0Fm_ftFVoQ/exec",
   token: "Hadis1376"
 };
-const APP_VERSION = "2.3";
+const APP_VERSION = "2.4";
 // آدرس‌های بازنشسته؛ گوشی‌هایی که این‌ها را ذخیره کرده‌اند خودکار به‌روز می‌شوند
 const OLD_URLS = [
   "https://script.google.com/macros/s/AKfycbzl9lOm--guC8maTXt5gsy8cSytkxFEg_Hr6FpLtG1jxP9snVFSgs03j3OQoSY7ALHijQ/exec",
@@ -1127,10 +1127,11 @@ function UT(k){ return SCAN_UI[SMODE][k]; }
 
 const FORMATS = ["ean_13","ean_8","upc_a","upc_e","code_128","code_39","itf","codabar","qr_code"];
 
-/* موتورهای موجود روی همین دستگاه، به ترتیب اولویت */
+/* موتورهای موجود روی همین دستگاه، به ترتیب اولویت.
+   موتور خود گوشی اول امتحان می‌شود (سریع‌ترین است)؛ اگر روی این گوشی
+   کار نکند یا چند ثانیه چیزی نخواند، خودکار می‌رویم سراغ ZBar. */
 async function enginesAvailable(){
   const list = [];
-  if(window.zbarWasm) list.push("zbar");
   if("BarcodeDetector" in window){
     try{
       const f = await window.BarcodeDetector.getSupportedFormats();
@@ -1138,10 +1139,11 @@ async function enginesAvailable(){
       if(f && f.length && f.some(x => FORMATS.indexOf(x) >= 0)) list.push("native");
     }catch(e){}
   }
+  if(window.zbarWasm) list.push("zbar");
   if(window.ZXing) list.push("zxing");
   return list;
 }
-const ENGINE_NAME = {zbar: "روش ۱ (پیش‌فرض)", native: "روش ۲ (موتور گوشی)", zxing: "روش ۳"};
+const ENGINE_NAME = {native: "موتور گوشی", zbar: "روش دوم (ZBar)", zxing: "روش سوم"};
 
 async function startScan(want){
   const v = U("v");
@@ -1187,11 +1189,13 @@ async function startScan(want){
 
 /* موتور اصلی: هر بار یک فریم از تصویر دوربین برداشته و به ZBar داده می‌شود.
    یک بار تمام کادر، یک بار وسطِ کادر با بزرگ‌نمایی — تا بارکدهای ریز هم بیفتند. */
-function startZBar(v){
+function startZBar(v, auto){
+  clearTimeout(watchdog); watchdog = null;
   engine = "zbar";
-  U("hint").textContent = SMODE === "cart"
-    ? "بارکد بگیر جلوی دوربین؛ خودش به سبد اضافه می‌شود…"
-    : "بارکد را داخل کادر بگیرید…";
+  U("hint").textContent = auto
+    ? "روش دوم اسکن فعال شد — بارکد را داخل کادر ثابت نگه دار…"
+    : (SMODE === "cart" ? "بارکد بگیر جلوی دوربین؛ خودش به سبد اضافه می‌شود…"
+                        : "بارکد را داخل کادر بگیرید…");
   const c = document.createElement("canvas");
   const x = c.getContext("2d", {willReadFrequently: true});
   let turn = 0, busy = false;
@@ -1241,14 +1245,15 @@ function startNative(v){
     rafId = requestAnimationFrame(loop);
   };
   loop();
-  // اگر پنج ثانیه هیچ چیزی نخواند، برمی‌گردیم روی موتور اصلی
+  // اگر چهار ثانیه هیچ چیزی نخواند (بارکد خاص یا موتور خرابِ گوشی)،
+  // بی‌سروصدا می‌رویم روی ZBar که سخت‌گیرتر می‌خواند
   clearTimeout(watchdog);
   watchdog = setTimeout(() => {
     if(scanning && engine === "native"){
       if(rafId){ cancelAnimationFrame(rafId); rafId = null; }
-      if(window.zbarWasm) startZBar(v); else startZX(v, "auto");
+      if(window.zbarWasm) startZBar(v, "auto"); else startZX(v, "auto");
     }
-  }, 5000);
+  }, 4000);
 }
 
 function startZX(v, auto){
